@@ -33,8 +33,8 @@ def load_dataset(filename):
     labels = np.zeros(0, dtype=np.uint8)
     number = np.zeros((1, 0, 16), dtype=np.float32)
     
-
-
+    
+    '''
     same_number=1
     index_global=0
     counter=0
@@ -94,7 +94,50 @@ def load_dataset(filename):
             
             
         
+    '''
+    number = np.zeros((1, 0, 16), dtype=np.float32)   
+    
+    
+    start_new_number=1    
+    counter=0
+    with gzip.open(filename,'r') as fin:
+        for line in fin:
             
+            if counter %17 ==0:
+                #print "got label" ,line
+                labels=np.append(labels,int (line))    
+                
+            else:
+                if start_new_number:
+                    #print "number stored is", number
+                    #print "we start a new number"
+                    number = np.zeros((1, 0, 16), dtype=np.float32)   
+                    start_new_number=0
+                    
+                    
+                #print "got number_line", line
+                
+                number_line= np.fromstring(line,sep=' ')
+                number_line=number_line.reshape(1,1,16)
+                number=np.append(number,number_line, axis=1)
+                
+                #if the number is finished, add it to data
+                if number.shape[1]==16:
+                    #we finished with the number, put it in data
+                    start_new_number=1
+                    number=number.reshape(1, 1, 16, 16)
+                    data= np.append(data,number,axis=0)
+                
+            
+            counter=counter + 1
+            
+            
+            
+            
+                        
+#            if counter > 100:
+#                break
+    
  
 
         
@@ -122,6 +165,29 @@ def build_cnn(input_var=None):
     #       * max-pooling layer with pooling-size 2x2
     #       * output layer with 10 units (one for each class)
     #         and softmax nonlinearity
+
+    #input
+    network = lasagne.layers.InputLayer(shape=(None, 1, 16, 16),
+                                        input_var=input_var)
+            
+    #2 pais of convolution-pooling                            
+    network = lasagne.layers.Conv2DLayer(
+        network, num_filters=16, filter_size=(3, 3),
+        nonlinearity=lasagne.nonlinearities.rectify,
+        W=lasagne.init.GlorotUniform())        
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))  
+                            
+    network = lasagne.layers.Conv2DLayer(
+        network, num_filters=16, filter_size=(3, 3),
+        nonlinearity=lasagne.nonlinearities.rectify)
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
+
+    #output
+    network = lasagne.layers.DenseLayer(
+        network,
+        num_units=10,
+        nonlinearity=lasagne.nonlinearities.softmax)
+    
 
     return network
 
@@ -160,10 +226,11 @@ def main(num_epochs=20, needsNormalization=True):
     test_data, test_labels = load_dataset('usps/test.gz')
 
 
-    print "train_labels are", train_labels
+    
+    print "train_data has dimensions",train_data.shape
     print "train_labels has dimensions", train_labels.shape
     
-    print "test_labels are", test_labels
+    print "test_data has dimensions", test_data.shape
     print "test_labels has dimensions", test_labels.shape
 
     # normalize the data
@@ -182,20 +249,60 @@ def main(num_epochs=20, needsNormalization=True):
     # TODO: setup training criterion and loss functions
     #       * use categorical crossentropy loss
     #       * use SGD with Nesterov momentum 0.9 and learning rate 0.1 for optimization
+    
+    prediction = lasagne.layers.get_output(network)
+    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
+    loss = loss.mean()
+
+    params = lasagne.layers.get_all_params(network, trainable=True)
+    updates = lasagne.updates.nesterov_momentum(
+        loss, params, learning_rate=0.1, momentum=0.9)
+
 
     # actual training
     print "Starting training..."
+    test_prediction = lasagne.layers.get_output(network, deterministic=True)
+    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
+                                                        target_var)
+    test_loss = test_loss.mean    
+    
+    test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
+                  dtype=theano.config.floatX)
+    
+    train_fn = theano.function([input_var, target_var], loss, updates=updates)
+    #val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+    
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        pass
+        print "epoch",epoch
         # TODO: process an epoch
         #       * use a minibach-size of 128
         #       * keep track of the training loss after each epoch and print it
+        
+        for batch in iterate_minibatches(train_data, train_labels, 128, shuffle=True):
+            pass
+            inputs, targets = batch
+            #print "got a bath"
+            
+            
+            inputs=inputs.astype(np.float32)
+            targets=targets.astype(np.int32)
+            #print inputs.dtype
+            #print targets.dtype
+            train_fn(inputs, targets)        
+        
+        '''
+        test_prediction = lasagne.layers.get_output(network, deterministic=True)
+        test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
+                                                        target_var)
+        test_loss = test_loss.mean()
+        '''
 
     # After training, we compute the test error
     # TODO: use the trained network to classify the test data
     #       * print the test loss
     #       * also print the test accuracy
+    
 
 
 
