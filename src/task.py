@@ -149,6 +149,20 @@ def load_dataset(filename):
 def normalize(data):
     
     # TODO: mean and variance normalization of data
+    
+    mean=np.mean (data)
+    var=np.var (data)
+    
+#    print "mean of data is" , mean
+#    print "var of data is" , var
+    
+    data=(data-mean)/ (np.sqrt(var))
+    
+#    mean=np.mean (data)
+#    var=np.var (data)
+#    
+#    print "after mean of data is" , mean
+#    print "after var of data is" , var
 
     return data
 
@@ -261,48 +275,60 @@ def main(num_epochs=20, needsNormalization=True):
 
     # actual training
     print "Starting training..."
+    # Create a loss expression for validation/testing
     test_prediction = lasagne.layers.get_output(network, deterministic=True)
     test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-                                                        target_var)
-    test_loss = test_loss.mean    
-    
+                                                            target_var)
+    test_loss = test_loss.mean()
     test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-                  dtype=theano.config.floatX)
-    
+                      dtype=theano.config.floatX)
+
+
     train_fn = theano.function([input_var, target_var], loss, updates=updates)
-    #val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+    # Compile a second function computing the validation loss and accuracy:
+    val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
     
     # We iterate over epochs:
     for epoch in range(num_epochs):
         print "epoch",epoch
+        train_err = 0
+        train_batches = 0
         # TODO: process an epoch
         #       * use a minibach-size of 128
         #       * keep track of the training loss after each epoch and print it
         
         for batch in iterate_minibatches(train_data, train_labels, 128, shuffle=True):
-            pass
             inputs, targets = batch
-            #print "got a bath"
-            
-            
             inputs=inputs.astype(np.float32)
             targets=targets.astype(np.int32)
-            #print inputs.dtype
-            #print targets.dtype
-            train_fn(inputs, targets)        
+            
+            train_err +=train_fn(inputs, targets)     
+            train_batches += 1
         
-        '''
-        test_prediction = lasagne.layers.get_output(network, deterministic=True)
-        test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-                                                        target_var)
-        test_loss = test_loss.mean()
-        '''
-
+        
+        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
     # After training, we compute the test error
     # TODO: use the trained network to classify the test data
     #       * print the test loss
     #       * also print the test accuracy
     
+    print "STARTING VALIDATION"
+    val_err = 0
+    val_acc = 0
+    val_batches = 0
+    for batch in iterate_minibatches(test_data, test_labels, 128, shuffle=False):
+        inputs, targets = batch
+        inputs=inputs.astype(np.float32)
+        targets=targets.astype(np.int32)
+        
+        err, acc = val_fn(inputs, targets)
+        val_err += err
+        val_acc += acc
+        val_batches += 1
+
+    print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+    print("  validation accuracy:\t\t{:.2f} %".format(
+        val_acc / val_batches * 100))
 
 
 
