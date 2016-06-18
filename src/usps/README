@@ -1,0 +1,15 @@
+The file format is as follows:
+
+An image is a 16x16 block of grayscale values ranging from 0-255.
+Each label/image pair is structured as follows:
+<label>
+<pixel_1_1>  ... <pixel_1_16>
+     .                .
+     .                .
+     .                .
+<pixel_16_1> ... <pixel_16_16>
+
+So, a label/image pair is 17 lines long. First, there is the label in a single line,
+then, the 16x16 image is represented in 16 lines with 16 values in each line.
+If you view the (unzipped) files with an editor, you can recognize the digits
+from the ascii representation, so take a look ;)
